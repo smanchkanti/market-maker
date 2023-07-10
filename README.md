@@ -35,4 +35,7 @@ To train the volatility prediction model, follow these steps:
 3. Ensure LibTorch is properly installed and configured.
 4. Compile and run the program. During execution, the program will load the training data, train the volatility prediction model, and save the trained model weights.
 
-
+## Assumptions
+1. Risk free interest rate is fixed for constant discount rate
+2. Annual security volatility is fixed
+3. Expiry date is the same for all options
