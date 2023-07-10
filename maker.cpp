@@ -19,6 +19,15 @@ struct Option {
     double strike;
     double expiry;
     double price;
+    int quantity;
+};
+
+// Future struct
+struct Future {
+    string symbol;
+    double expiry;
+    double price;
+    int quantity;
 };
 
 // Function to generate random numbers from a normal distribution
@@ -55,16 +64,40 @@ double N(double x) {
     return 0.5 * (1 + erf(x / sqrt(2)));
 }
 
-// Function to handle buy orders
-void handleBuyOrder(const Option& option, double bid_price) {
-    cout << "Buy Order: " << option.symbol << " Strike: " << option.strike << " Expiry: " << option.expiry << " Price: " << bid_price << endl;
-    // Add buy order handling logic here
+// Function to handle buy orders for options
+void handleBuyOrder(const Option& option, double bid_price, double& optionsPnL) {
+    cout << "Buy Option Order: " << option.symbol << " Strike: " << option.strike << " Expiry: " << option.expiry << " Price: " << bid_price << endl;
+    // Add buy order handling logic for options here
+
+    double pnl = (option.price - bid_price) * option.quantity;
+    optionsPnL += pnl;
 }
 
-// Function to handle sell orders
-void handleSellOrder(const Option& option, double ask_price) {
-    cout << "Sell Order: " << option.symbol << " Strike: " << option.strike << " Expiry: " << option.expiry << " Price: " << ask_price << endl;
-    // Add sell order handling logic here
+// Function to handle sell orders for options
+void handleSellOrder(const Option& option, double ask_price, double& optionsPnL) {
+    cout << "Sell Option Order: " << option.symbol << " Strike: " << option.strike << " Expiry: " << option.expiry << " Price: " << ask_price << endl;
+    // Add sell order handling logic for options here
+
+    double pnl = (ask_price - option.price) * option.quantity;
+    optionsPnL += pnl;
+}
+
+// Function to handle buy orders for futures
+void handleBuyOrder(const Future& future, double bid_price, double& futuresPnL) {
+    cout << "Buy Future Order: " << future.symbol << " Expiry: " << future.expiry << " Price: " << bid_price << endl;
+    // Add buy order handling logic for futures here
+
+    double pnl = (future.price - bid_price) * future.quantity;
+    futuresPnL += pnl;
+}
+
+// Function to handle sell orders for futures
+void handleSellOrder(const Future& future, double ask_price, double& futuresPnL) {
+    cout << "Sell Future Order: " << future.symbol << " Expiry: " << future.expiry << " Price: " << ask_price << endl;
+    // Add sell order handling logic for futures here
+
+    double pnl = (ask_price - future.price) * future.quantity;
+    futuresPnL += pnl;
 }
 
 int main() {
@@ -75,11 +108,23 @@ int main() {
 
     // Generate a list of options
     vector<Option> options{
-        {"AAPL", 120.0, 0.25, 0.0},
-        {"GOOG", 2000.0, 0.5, 0.0},
-        {"MSFT", 150.0, 0.75, 0.0},
-        {"AMZN", 3000.0, 1.0, 0.0}
+        {"AAPL", 120.0, 0.25, 0.0, 0},
+        {"GOOG", 2000.0, 0.5, 0.0, 0},
+        {"MSFT", 150.0, 0.75, 0.0, 0},
+        {"AMZN", 3000.0, 1.0, 0.0, 0}
     };
+
+    // Generate a list of futures contracts
+    vector<Future> futures{
+        {"CL", 1.0, 0.0, 0},
+        {"ES", 1.0, 0.0, 0},
+        {"NQ", 1.0, 0.0, 0},
+        {"GC", 1.0, 0.0, 0}
+    };
+
+    // Variables to track PnL
+    double optionsPnL = 0.0;
+    double futuresPnL = 0.0;
 
     // Simulate market maker behavior for 10 iterations
     for (int i = 1; i <= 10; ++i) {
@@ -101,6 +146,11 @@ int main() {
             option.price = blackScholes(current_price, option.strike, option.expiry, RISK_FREE_RATE, VOLATILITY, true);
         }
 
+        // Update future prices
+        for (auto& future : futures) {
+            future.price = current_price;  // Example: Use current price as futures price
+        }
+
         // Sort options by price in ascending order
         sort(options.begin(), options.end(), [](const Option& a, const Option& b) {
             return a.price < b.price;
@@ -108,21 +158,15 @@ int main() {
 
         // Handle buy and sell orders for options
         for (const auto& option : options) {
-            handleBuyOrder(option, bid_price);
-            handleSellOrder(option, ask_price);
+            handleBuyOrder(option, bid_price, optionsPnL);
+            handleSellOrder(option, ask_price, optionsPnL);
         }
 
-        // Output the current market information
-        cout << "Iteration " << i << endl;
-        cout << "Mid Price: " << mid_price << endl;
-        cout << "Bid Price: " << bid_price << endl;
-        cout << "Ask Price: " << ask_price << endl;
-        cout << "Options: " << endl;
-        for (const auto& option : options) {
-            cout << option.symbol << " Price: " << option.price << endl;
+        // Handle buy and sell orders for futures
+        for (const auto& future : futures) {
+            handleBuyOrder(future, bid_price, futuresPnL);
+            handleSellOrder(future, ask_price, futuresPnL);
         }
-        cout << endl;
-    }
 
-    return 0;
-}
+        // Output the current market information and PnL
+        cout << "
