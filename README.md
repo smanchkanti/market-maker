@@ -1,6 +1,6 @@
-# Options Market Maker
+# Market Maker
 
-This project is an implementation of an Options Market Maker program that simulates the behavior of a market maker in the financial options market. The program uses the Black-Scholes option pricing model, random price generation, and includes AI-based volatility prediction using LSTM neural networks.
+Market Maker is an Options Market Maker program that simulates the behavior of a market maker in the financial options market. The program uses the Black-Scholes option pricing model, random price generation, and includes AI-based volatility prediction using LSTM neural networks. It also includes pricing for natural gas and oil.
 
 ## Features
 
@@ -9,33 +9,38 @@ This project is an implementation of an Options Market Maker program that simula
 3. **Random Price Generation**: The program generates random price changes based on the given volatility.
 4. **Volatility Prediction**: The program includes an AI-based volatility prediction model trained using LSTM neural networks to forecast future volatility.
 5. **P&L Calculation**: The program tracks profit and loss (P&L) for both options and futures.
+6. **Pricing for Natural Gas and Oil**: The program provides pricing for natural gas and oil based on random price changes and volatility.
 
 ## Dependencies
 
 - C++ Standard Library
-- LibTorch (C++ PyTorch library)
 
 ## Usage
 
-1. Ensure you have the required dependencies installed.
-2. Compile the program using a C++ compiler with the necessary flags and include paths for LibTorch.
-3. Run the compiled executable.
+1. Ensure you have a C++ compiler installed.
+2. Compile the code using the compiler with C++11 support. For example:
+   ```bash
+   g++ maker.cpp -std=c++11 -o market-maker
 
-## File Structure
+Run ./market-maker
 
-- `maker.cpp`: The main source file containing the options market maker program.
-- `volatility_data.csv`: CSV file containing historical volatility data for training the volatility prediction model.
 
-## Training the Volatility Prediction Model
+File Structure
 
-To train the volatility prediction model, follow these steps:
+maker.cpp: The main source file containing the options market maker program.
+Option Market Making
 
-1. Prepare a CSV file containing historical volatility data. Each row should represent a time step, and each column should represent a feature or input to the model.
-2. Update the `volatility_data.csv` file with your historical volatility data.
-3. Ensure LibTorch is properly installed and configured.
-4. Compile and run the program. During execution, the program will load the training data, train the volatility prediction model, and save the trained model weights.
+The program acts as a market maker for options. It generates bid and ask prices for a list of predefined options based on the current market conditions. The bid and ask prices are calculated using the Black-Scholes option pricing model, taking into account the current price of the underlying asset, strike price, time to expiry, risk-free rate, and volatility. The program handles both buy and sell orders for options and tracks the profit and loss (P&L) based on executed trades.
 
-## Assumptions
-1. Risk free interest rate is fixed for constant discount rate
-2. Annual security volatility is fixed
-3. Expiry date is the same for all options
+Random Price Generation
+
+To simulate market conditions, the program generates random price changes for the underlying asset based on the given volatility. The random price changes are generated using a normal distribution with the mean of zero and the specified volatility.
+
+Volatility Prediction
+
+The program includes an AI-based volatility prediction model trained using LSTM neural networks. The model is trained on historical volatility data to forecast future volatility. During the simulation, the program uses the predicted volatility to generate more accurate option prices and market conditions.
+
+Pricing for Natural Gas and Oil
+
+The program provides pricing for natural gas and oil based on random price changes and volatility. It generates random price changes for natural gas and oil using a normal distribution with the mean and volatility specified for each asset.
+
