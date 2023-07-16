@@ -191,3 +191,33 @@ int main() {
 
         for (auto& option : options) {
             option.price = blackScholes(current_price, option.strike, option.expiry, RISK_FREE_RATE, predictVolatility(volatilityModel, current_price), true
+
+
+    for (auto& future : futures) {
+        future.price = current_price;
+    }
+
+    // Handle buy and sell orders for options
+    for (auto& option : options) {
+        if (option.quantity > 0) {
+            handleSellOrder(option, ask_price, optionsPnL);
+        } else if (option.quantity < 0) {
+            handleBuyOrder(option, bid_price, optionsPnL);
+        }
+    }
+
+    // Handle buy and sell orders for futures
+    for (auto& future : futures) {
+        if (future.quantity > 0) {
+            handleSellOrder(future, ask_price, futuresPnL);
+        } else if (future.quantity < 0) {
+            handleBuyOrder(future, bid_price, futuresPnL);
+        }
+    }
+}
+
+cout << "Options PnL: " << optionsPnL << endl;
+cout << "Futures PnL: " << futuresPnL << endl;
+
+return 0;
+
