@@ -4,16 +4,17 @@
 #include <chrono>
 #include <vector>
 #include <algorithm>
+#include <fstream>
+#include <sstream>
+#include <torch/torch.h>
+#include <torch/script.h>
 
 using namespace std;
 
-// Constants
 const double INITIAL_PRICE = 100.0;
 const double SPREAD = 1.0;
-const double VOLATILITY = 0.1;
 const double RISK_FREE_RATE = 0.05;
 
-// Option struct
 struct Option {
     string symbol;
     double strike;
@@ -22,7 +23,6 @@ struct Option {
     int quantity;
 };
 
-// Future struct
 struct Future {
     string symbol;
     double expiry;
@@ -30,7 +30,6 @@ struct Future {
     int quantity;
 };
 
-// Function to generate random numbers from a normal distribution
 double generateRandomNumber(double mean, double std_dev) {
     unsigned seed = chrono::system_clock::now().time_since_epoch().count();
     default_random_engine generator(seed);
@@ -38,14 +37,12 @@ double generateRandomNumber(double mean, double std_dev) {
     return distribution(generator);
 }
 
-// Function to calculate the bid and ask prices based on the current mid price
 void calculateBidAsk(double mid_price, double& bid_price, double& ask_price) {
     double half_spread = SPREAD / 2.0;
     bid_price = mid_price - half_spread;
     ask_price = mid_price + half_spread;
 }
 
-// Option pricing model - Black-Scholes
 double blackScholes(double S, double K, double T, double r, double sigma, bool isCall) {
     double d1 = (log(S / K) + (r + 0.5 * sigma * sigma) * T) / (sigma * sqrt(T));
     double d2 = d1 - sigma * sqrt(T);
@@ -59,54 +56,109 @@ double blackScholes(double S, double K, double T, double r, double sigma, bool i
     }
 }
 
-// Cumulative standard normal distribution function
 double N(double x) {
     return 0.5 * (1 + erf(x / sqrt(2)));
 }
 
-// Function to handle buy orders for options
 void handleBuyOrder(const Option& option, double bid_price, double& optionsPnL) {
-    cout << "Buy Option Order: " << option.symbol << " Strike: " << option.strike << " Expiry: " << option.expiry << " Price: " << bid_price << endl;
-    // Add buy order handling logic for options here
-
     double pnl = (option.price - bid_price) * option.quantity;
     optionsPnL += pnl;
 }
 
-// Function to handle sell orders for options
 void handleSellOrder(const Option& option, double ask_price, double& optionsPnL) {
-    cout << "Sell Option Order: " << option.symbol << " Strike: " << option.strike << " Expiry: " << option.expiry << " Price: " << ask_price << endl;
-    // Add sell order handling logic for options here
-
     double pnl = (ask_price - option.price) * option.quantity;
     optionsPnL += pnl;
 }
 
-// Function to handle buy orders for futures
 void handleBuyOrder(const Future& future, double bid_price, double& futuresPnL) {
-    cout << "Buy Future Order: " << future.symbol << " Expiry: " << future.expiry << " Price: " << bid_price << endl;
-    // Add buy order handling logic for futures here
-
     double pnl = (future.price - bid_price) * future.quantity;
     futuresPnL += pnl;
 }
 
-// Function to handle sell orders for futures
 void handleSellOrder(const Future& future, double ask_price, double& futuresPnL) {
-    cout << "Sell Future Order: " << future.symbol << " Expiry: " << future.expiry << " Price: " << ask_price << endl;
-    // Add sell order handling logic for futures here
-
     double pnl = (ask_price - future.price) * future.quantity;
     futuresPnL += pnl;
+}
+
+torch::Tensor loadTrainingData(const string& file_path) {
+    ifstream file(file_path);
+    vector<vector<float>> data;
+    string line;
+    while (getline(file, line)) {
+        istringstream iss(line);
+        vector<float> row;
+        float val;
+        while (iss >> val) {
+            row.push_back(val);
+        }
+        data.push_back(row);
+    }
+    file.close();
+
+    auto options_data = torch::from_blob(data.data(), {data.size(), data[0].size()});
+    return options_data;
+}
+
+torch::nn::Sequential trainVolatilityModel(torch::Tensor training_data) {
+    torch::manual_seed(0);
+    auto dtype = torch::kFloat32;
+    auto device = torch::kCPU;
+
+    int input_size = training_data.size(1);
+    int hidden_size = 32;
+    int output_size = 1;
+    int num_layers = 2;
+
+    torch::nn::Sequential model(
+        torch::nn::LSTM(torch::nn::LSTMOptions(input_size, hidden_size).num_layers(num_layers)),
+        torch::nn::Linear(hidden_size, output_size)
+    );
+    model->to(dtype).to(device);
+
+    torch::optim::Adam optimizer(model->parameters(), torch::optim::AdamOptions(0.001));
+
+    int num_epochs = 10;
+    int seq_length = 5;
+
+    for (int epoch = 0; epoch < num_epochs; ++epoch) {
+        for (int i = 0; i < training_data.size(0) - seq_length; ++i) {
+            torch::Tensor inputs = training_data.narrow(0, i, seq_length).unsqueeze(1);
+            torch::Tensor targets = training_data.narrow(0, i + seq_length, 1);
+
+            inputs = inputs.to(dtype).to(device);
+            targets = targets.to(dtype).to(device);
+
+            optimizer.zero_grad();
+
+            torch::Tensor outputs = model->forward(inputs);
+
+            torch::Tensor loss = torch::mse_loss(outputs, targets);
+            loss.backward();
+
+            optimizer.step();
+        }
+    }
+
+    return model;
+}
+
+double predictVolatility(const torch::nn::Sequential& model, double current_price) {
+    torch::NoGradGuard no_grad;
+    model->eval();
+
+    int input_size = model->named_parameters()["0.weight"].size(1);
+    torch::Tensor input = torch::empty({1, input_size});
+    input[0][0] = current_price;
+
+    torch::Tensor output = model->forward(input.unsqueeze(1));
+    double predicted_volatility = output[0][0].item<double>();
+
+    return predicted_volatility;
 }
 
 int main() {
     double current_price = INITIAL_PRICE;
 
-    cout << "Market Maker Simulation" << endl;
-    cout << "Initial Price: " << current_price << endl;
-
-    // Generate a list of options
     vector<Option> options{
         {"AAPL", 120.0, 0.25, 0.0, 0},
         {"GOOG", 2000.0, 0.5, 0.0, 0},
@@ -114,7 +166,6 @@ int main() {
         {"AMZN", 3000.0, 1.0, 0.0, 0}
     };
 
-    // Generate a list of futures contracts
     vector<Future> futures{
         {"CL", 1.0, 0.0, 0},
         {"ES", 1.0, 0.0, 0},
@@ -122,51 +173,51 @@ int main() {
         {"GC", 1.0, 0.0, 0}
     };
 
-    // Variables to track PnL
     double optionsPnL = 0.0;
     double futuresPnL = 0.0;
 
-    // Simulate market maker behavior for 10 iterations
-    for (int i = 1; i <= 10; ++i) {
-        // Generate a random price change based on volatility
-        double price_change = generateRandomNumber(0.0, VOLATILITY);
+    torch::Tensor training_data = loadTrainingData("volatility_data.csv");
+    torch::nn::Sequential volatilityModel = trainVolatilityModel(training_data);
 
-        // Calculate the new mid price
+    for (int i = 1; i <= 10; ++i) {
+        double price_change = generateRandomNumber(0.0, predictVolatility(volatilityModel, current_price));
+
         double mid_price = current_price + price_change;
 
-        // Calculate bid and ask prices
         double bid_price, ask_price;
         calculateBidAsk(mid_price, bid_price, ask_price);
 
-        // Update the current price for the next iteration
         current_price = mid_price;
 
-        // Update option prices using the Black-Scholes model
         for (auto& option : options) {
-            option.price = blackScholes(current_price, option.strike, option.expiry, RISK_FREE_RATE, VOLATILITY, true);
-        }
+            option.price = blackScholes(current_price, option.strike, option.expiry, RISK_FREE_RATE, predictVolatility(volatilityModel, current_price), true
 
-        // Update future prices
-        for (auto& future : futures) {
-            future.price = current_price;  // Example: Use current price as futures price
-        }
 
-        // Sort options by price in ascending order
-        sort(options.begin(), options.end(), [](const Option& a, const Option& b) {
-            return a.price < b.price;
-        });
+    for (auto& future : futures) {
+        future.price = current_price;
+    }
 
-        // Handle buy and sell orders for options
-        for (const auto& option : options) {
-            handleBuyOrder(option, bid_price, optionsPnL);
+    // Handle buy and sell orders for options
+    for (auto& option : options) {
+        if (option.quantity > 0) {
             handleSellOrder(option, ask_price, optionsPnL);
+        } else if (option.quantity < 0) {
+            handleBuyOrder(option, bid_price, optionsPnL);
         }
+    }
 
-        // Handle buy and sell orders for futures
-        for (const auto& future : futures) {
-            handleBuyOrder(future, bid_price, futuresPnL);
+    // Handle buy and sell orders for futures
+    for (auto& future : futures) {
+        if (future.quantity > 0) {
             handleSellOrder(future, ask_price, futuresPnL);
+        } else if (future.quantity < 0) {
+            handleBuyOrder(future, bid_price, futuresPnL);
         }
+    }
+}
 
-        // Output the current market information and PnL
-        cout << "
+cout << "Options PnL: " << optionsPnL << endl;
+cout << "Futures PnL: " << futuresPnL << endl;
+
+return 0;
+
